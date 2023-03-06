@@ -5,8 +5,10 @@ import (
 	"fmt"
 	"log"
 	"os"
-	"os/exec"
+	"path"
 	"strings"
+
+	"github.com/edohoangt/multi-git/pkg/repo_manager"
 )
 
 func main() {
@@ -21,42 +23,15 @@ func main() {
 	}
 
 	repo_names := strings.Split(os.Getenv("MG_REPOS"), ",")
-	var repos []string
-
-	// Verify all repos exist and are actually git repos (have .git sub-dir)
-	// Otherwise exit
-	for _, r := range repo_names {
-		path := root + r
-		_, err := os.Stat(path + "/.git")
-		if err != nil {
-			log.Fatal(err)
-		}
-		repos = append(repos, path)
+	repoManager, err := repo_manager.NewRepoManager(root, repo_names, *ignoreErros)
+	if err != nil {
+		log.Fatal(err)
 	}
 
-	// Break the git command into components (needed to execute)
-	var git_components []string
-	git_components = append(git_components, strings.Split(*command, " ")...)
-
-	command_string := "git " + *command
-
-	for _, r := range repos {
-		// Go to the repo's directory
-		os.Chdir(r);
-
-		// Print the command
-		fmt.Printf("[%s] %s\n", r, command_string)
-
-		// Execute the command
-		out, err := exec.Command("git", git_components...).CombinedOutput()
-
-		// Print the result
-		fmt.Println(string(out))
-
-		// Exit if there was an error and NOT ignoring errors
-		if err != nil && !*ignoreErros {
-			os.Exit(1)
-		}
+	output, _ := repoManager.Exec(*command)
+	for repo, out := range output {
+		fmt.Printf("[%s]: git %s\n", path.Base(repo), *command)
+		fmt.Printf(out)
 	}
 
 	fmt.Println("Done.")
